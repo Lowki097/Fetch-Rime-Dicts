@@ -1,0 +1,29 @@
+name: Track Dictionary Changes
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'cn_dicts/**/*.dict.yaml'
+
+jobs:
+  track_changes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v39
+        with:
+          files: cn_dicts/**/*.dict.yaml
+
+      - name: List changed dict files
+        run: |
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            echo "$file was changed"
+          done
+
+      # 这里可以添加更多步骤来处理变更的文件
