@@ -1,36 +1,55 @@
-name: Fetch cn_dicts
+name: 获取 cn_dicts 更新
 
 on:
-  push:
-    branches:
-      - main  # 或者您想要触发的分支名称
+  schedule:
+    - cron: '0 0 * * *'  # 每天午夜运行
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  fetch_cn_dicts:
+  fetch_cn_dicts_updates:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1  # 我们只需要最新的提交
-
-      - name: Fetch cn_dicts folder
+      - name: 检出仓库
         uses: actions/checkout@v4
-        with:
-          repository: boomker/rime-fast-xhup
-          path: temp_rime_fast_xhup
-          sparse-checkout: |
-            cn_dicts
-          sparse-checkout-cone-mode: false
 
-      - name: Move cn_dicts to root
+      - name: 获取 cn_dicts 最新更改
         run: |
-          mv temp_rime_fast_xhup/cn_dicts ./
-          rm -rf temp_rime_fast_xhup
+          # 克隆目标仓库
+          git clone --depth 1 https://github.com/boomker/rime-fast-xhup.git temp_repo
+          cd temp_repo
+          
+          # 获取 cn_dicts 最后更新的日期和提交
+          last_commit=$(git log -1 --format=%H -- cn_dicts)
+          update_date=$(git log -1 --format=%Y%m%d -- cn_dicts)
+          
+          # 检查是否有新的更新
+          if [ -f "../last_checked_commit.txt" ] && [ "$(cat ../last_checked_commit.txt)" == "$last_commit" ]; then
+            echo "没有新的更新。"
+            exit 0
+          fi
+          
+          # 创建更新文件夹
+          update_folder="../Xhup_${update_date}"
+          mkdir -p "$update_folder"
+          
+          # 复制更新的文件
+          git diff-tree --no-commit-id --name-only -r $last_commit | grep "^cn_dicts/" | while read file; do
+            mkdir -p "$update_folder/$(dirname ${file#cn_dicts/})"
+            cp "$file" "$update_folder/${file#cn_dicts/}"
+          done
+          
+          # 保存最后检查的提交
+          echo "$last_commit" > ../last_checked_commit.txt
+          
+          cd ..
+          rm -rf temp_repo
 
-      - name: Commit and push if changed
+      - name: 提交更改
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "GitHub Actions"
-          git add cn_dicts
-          git commit -m "Update cn_dicts from rime-fast-xhup" || exit 0
+          git add Xhup_* last_checked_commit.txt
+          git commit -m "更新来自 rime-fast-xhup 的 cn_dicts" || exit 0
           git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
