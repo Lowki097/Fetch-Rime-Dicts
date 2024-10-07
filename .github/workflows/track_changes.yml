@@ -12,10 +12,12 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取所有历史记录
+          fetch-depth: 0
 
       - name: 获取 cn_dicts 最新更改
         run: |
+          echo "开始检查更新..."
+          
           # 克隆目标仓库
           git clone --depth 1 https://github.com/boomker/rime-fast-xhup.git temp_repo
           cd temp_repo
@@ -24,10 +26,19 @@ jobs:
           last_commit=$(git log -1 --format=%H -- cn_dicts)
           update_date=$(git log -1 --format=%Y%m%d -- cn_dicts)
           
+          echo "最新提交: $last_commit"
+          echo "更新日期: $update_date"
+          
           # 检查是否有新的更新
-          if [ -f "../last_checked_commit.txt" ] && [ "$(cat ../last_checked_commit.txt)" == "$last_commit" ]; then
-            echo "没有新的更新。"
-            exit 0
+          if [ -f "../last_checked_commit.txt" ]; then
+            previous_commit=$(cat ../last_checked_commit.txt)
+            echo "上次检查的提交: $previous_commit"
+            if [ "$previous_commit" == "$last_commit" ]; then
+              echo "没有新的更新。"
+              exit 0
+            fi
+          else
+            echo "首次运行，没有之前的提交记录。"
           fi
           
           # 创建更新文件夹
@@ -35,13 +46,22 @@ jobs:
           mkdir -p "$update_folder"
           
           # 复制更新的文件
-          git diff-tree --no-commit-id --name-only -r $last_commit | grep "^cn_dicts/" | while read file; do
-            mkdir -p "$update_folder/$(dirname ${file#cn_dicts/})"
-            cp "$file" "$update_folder/${file#cn_dicts/}"
-          done
+          updated_files=$(git diff-tree --no-commit-id --name-only -r $last_commit | grep "^cn_dicts/")
+          if [ -z "$updated_files" ]; then
+            echo "没有 cn_dicts 文件夹中的文件被更新。"
+          else
+            echo "更新的文件:"
+            echo "$updated_files"
+            echo "$updated_files" | while read file; do
+              mkdir -p "$update_folder/$(dirname ${file#cn_dicts/})"
+              cp "$file" "$update_folder/${file#cn_dicts/}"
+              echo "复制了文件: $file"
+            done
+          fi
           
           # 保存最后检查的提交
           echo "$last_commit" > ../last_checked_commit.txt
+          echo "更新了 last_checked_commit.txt"
           
           cd ..
           rm -rf temp_repo
@@ -51,13 +71,12 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "GitHub Actions"
           
-          # 拉取最新的更改
           git pull origin main --rebase
           
           git add Xhup_* last_checked_commit.txt
+          git status
           git commit -m "更新来自 rime-fast-xhup 的 cn_dicts" || echo "没有更改需要提交"
           
-          # 推送更改，如果失败则再次拉取并推送
           git push || (git pull origin main --rebase && git push)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
