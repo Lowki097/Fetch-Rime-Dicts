@@ -78,7 +78,20 @@ jobs:
             echo "last_checked_commit.txt 不存在于远程，跳过拉取"
           fi
           
-          git add Xhup_* last_checked_commit.txt
+          # 检查 Xhup_* 文件是否存在
+          if ls Xhup_* 1> /dev/null 2>&1; then
+            git add Xhup_*
+          else
+            echo "没有找到 Xhup_* 文件"
+          fi
+          
+          # 检查 last_checked_commit.txt 是否存在
+          if [ -f last_checked_commit.txt ]; then
+            git add last_checked_commit.txt
+          else
+            echo "last_checked_commit.txt 不存在"
+          fi
+          
           git status
           
           if git diff --staged --quiet; then
